@@ -1,6 +1,3 @@
-# analise-peso-nascimento
-Análise estatística do peso ao nascer com modelos multinomial e ordinal utilizando R e dados do CHDS.
-
 # Análise do Peso ao Nascer com Modelos Estatísticos
 
 Este projeto apresenta uma análise do peso ao nascer de bebês a partir de dados do estudo **Child Health and Development Studies (CHDS)**, utilizando técnicas de modelagem estatística, com foco em modelos multinomial e ordinal.
