@@ -32,4 +32,4 @@ Identificar os principais fatores associados ao peso ao nascer — como idade ma
 
 Samuel Sobral Miller  
 Estatístico | Cientista de Dados  
-[LinkedIn]((https://www.linkedin.com/in/samuelsmiller/))  
+[LinkedIn](https://www.linkedin.com/in/samuelsmiller/)  
