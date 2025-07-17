@@ -1,0 +1,547 @@
+
+---
+title: "Análise Descritiva - Peso ao Nascer"
+author: "Samuel Sobral Miller"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+    toc_depth: 2
+    latex_engine: pdflatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(ggthemes)
+library(FactoMineR)
+library(factoextra)
+library(readr)
+library(dplyr)
+
+```
+
+# 1. Introdução
+
+Esta seção apresenta uma análise descritiva da variável resposta `low_birth_weigh` (peso ao nascer) e suas associações com variáveis explicativas como idade materna e tabagismo.
+
+# 2. Carregamento dos Dados
+
+
+
+
+```{r}
+dados <- read_csv("dados_limpo.csv")
+
+# Recategorização
+dados <- dados %>%
+  filter(number != "fumo_mas_não_sei") %>%
+  mutate(
+    ed = fct_collapse(ed,
+      Ensino_Medio_Incompleto = c("menor_8ª", "8ª-12ª", "Ensino_Medio_incompleto+curso_profissional"),
+      Ensino_Medio = c("Ensino_Medio", "Ensino_Medio+curso_profissional"),
+      Graduando = c("Ensino_Medio+curso_universitário"),
+      Ensino_Superior = c("Graduação_universitária")
+    ),
+    ded = fct_collapse(ded,
+      Ensino_Medio_Incompleto = c("menor_8ª", "8ª-12ª", "Ensino_Medio_incompleto+curso_profissional"),
+      Ensino_Medio = c("Ensino_Medio"),
+      Graduando = c("Ensino_Medio+curso_universitário"),
+      Ensino_Superior = c("Graduação_universitária")
+    ),
+    time = fct_collapse(time,
+      "Nunca" = c("nunca"),
+      "Fuma" = c("ainda_fuma"),
+      "-2_anos" = c("dentro_de_1_ano", "1_a_2_anos_atrás"),
+      "-5_anos" = c("2_a_3_anos_atrás", "3_a_4_anos_atrás"),
+      "+5_anos" = c("5_a_9_anos_atrás", "há_mais_de_10_anos"),
+      "Durante" = c("durante_a_gravidez_atual"),
+      "Nao_Sabe" = c("desisti_e_não_sei")
+    ),
+    number = fct_collapse(number,
+      "1-4" = c("1-4"),
+      "5-9" = c("5-9"),
+      "10-19" = c("10-14", "15-19"),
+      "20-29" = c("20-29"),
+      "30-39" = c("30-39"),
+      "40+" = c("40-60", "60+"),
+      "Nunca" = "nunca"
+    )
+  )
+
+# Seleção de variáveis
+
+db <- dados %>%
+  select(gestation, parity, wt.1, ht, inc, number, low_birth_weigh, race)
+db$low_birth_weigh <- factor(db$low_birth_weigh, levels = c("Baixo", "Médio", "Alto"), ordered = TRUE)
+db$number <- relevel(db$number, ref = "Nunca")
+
+```
+
+
+
+# 3. Distribuição do Peso ao Nascer
+
+```{r}
+dados %>%
+  count(low_birth_weigh) %>%
+  ggplot(aes(x = reorder(low_birth_weigh, -n), y = n, fill = low_birth_weigh)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = n), vjust = -0.5, size = 4) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Distribuição do Peso ao Nascer",
+       x = "Categoria de Peso",
+       y = "Frequência") +
+  theme_minimal(base_size = 13)
+```
+
+# 4. Idade da Mãe por Categoria de Peso
+
+```{r}
+ggplot(dados, aes(x = low_birth_weigh, y = age, fill = low_birth_weigh)) +
+  geom_boxplot(outlier.shape = 21, outlier.fill = "red", outlier.size = 2) +
+  scale_fill_brewer(palette = "Pastel1") +
+  labs(title = "Idade da Mãe por Categoria de Peso ao Nascer",
+       x = "Categoria de Peso",
+       y = "Idade da Mãe") +
+  theme_minimal(base_size = 13)
+```
+
+# 5. Hábito de Fumar por Categoria de Peso
+
+```{r}
+ggplot(db, aes(x = number, fill = low_birth_weigh)) +
+  geom_bar(position = "dodge") +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_x_discrete(labels = c(
+    "Nunca" = "Nunca fumou",
+    "1-4" = "1 a 4",
+    "5-9" = "5 a 9",
+    "10-19" = "10 a 19",
+    "20-29" = "20 a 29",
+    "30-39" = "30 a 39",
+    "40+" = "40+"
+  )) +
+  labs(title = "Tabagismo por Categoria de Peso ao Nascer",
+       x = "Cigarros por dia",
+       y = "Frequência",
+       fill = "Peso ao Nascer") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+
+```{r}
+# Carregar pacotes
+library(tidyverse)
+
+# Verifique se 'db' é seu dataframe final
+# db <- dados %>% select(number, low_birth_weigh)
+
+# Tabela cruzada
+tabela_paridade <- db %>%
+  count(number, low_birth_weigh) %>%
+  pivot_wider(names_from = low_birth_weigh, values_from = n, values_fill = 0) %>%
+  arrange(as.numeric(as.character(number)))
+
+# Visualizar tabela
+print(tabela_paridade)
+
+```
+
+```{r}
+ggplot(dados, aes(x = smoke, y = age, fill = smoke)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Idade das Mães por Hábito de Fumar",
+       x = "Status de Fumo",
+       y = "Idade da Mãe") +
+  theme_minimal(base_size = 13)
+
+```
+
+```{r}
+ggplot(dados, aes(x = smoke, y = parity, fill = smoke)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Número de Partos por Status de Fumo",
+       x = "Status de Fumo",
+       y = "Número de Partos") +
+  theme_minimal(base_size = 13)
+
+```
+
+```{r}
+ggplot(dados, aes(x = ed, fill = smoke)) +
+  geom_bar(position = "fill") +
+  scale_fill_brewer(palette = "Dark2") +
+  labs(title = "Relação entre Escolaridade e Tabagismo",
+       x = "Escolaridade",
+       y = "Proporção",
+       fill = "Fuma?") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+```{r}
+library(nnet)
+dados <- dados %>%
+  mutate(low_birth_weigh = relevel(as.factor(low_birth_weigh), ref = "Médio"))
+
+modelo <- multinom(low_birth_weigh ~ smoke + parity + ed + age, data = dados)
+summary(modelo)
+
+```
+
+```{r}
+# Erros padrão
+se <- summary(modelo)$standard.errors
+
+# Razões de chances (odds ratio)
+exp(coef(modelo))
+
+# Intervalos de confiança (opcional)
+confint.default(modelo)
+
+```
+
+
+```{r}
+# Erros padrão
+se <- summary(modelo)$standard.errors
+
+# Razões de chances (odds ratio)
+exp(coef(modelo))
+
+# Intervalos de confiança (opcional)
+confint.default(modelo)
+
+```
+
+```{r}
+library(ggpubr)
+
+ggboxplot(dados, x = "smoke", y = "parity", 
+          color = "smoke", palette = "jco",
+          add = "jitter") +
+  stat_compare_means(method = "anova") +
+  labs(title = "Número de Partos por Status de Fumo",
+       x = "Fuma?",
+       y = "Número de Partos")
+
+```
+```{r}
+# Pacotes necessários
+library(dplyr)
+library(knitr)
+
+# Tabela resumo por categoria de peso
+tabela_gestacao <- db %>%
+  group_by(low_birth_weigh) %>%
+  summarise(
+    N = n(),
+    Média = round(mean(gestation, na.rm = TRUE), 2),
+    DP = round(sd(gestation, na.rm = TRUE), 2),
+    Mínimo = min(gestation, na.rm = TRUE),
+    Q1 = quantile(gestation, 0.25, na.rm = TRUE),
+    Mediana = median(gestation, na.rm = TRUE),
+    Q3 = quantile(gestation, 0.75, na.rm = TRUE)
+  ) %>%
+  rename(Categoria = low_birth_weigh)
+
+# Imprimir como tabela no .tex
+kable(tabela_gestacao, caption = "Resumo do Tempo de Gestação (em dias) por Categoria de Peso ao Nascer")
+
+```
+
+```{r}
+# Supondo que os dados já estão em um data frame chamado `dados` com as variáveis:
+# - low_birth_weigh (Baixo, Médio, Alto)
+# - inc (faixa de renda)
+
+# Contagem da faixa de renda mais frequente por categoria de peso
+library(dplyr)
+
+tabela_renda <- dados %>%
+  group_by(low_birth_weigh, inc) %>%
+  summarise(freq = n(), .groups = "drop") %>%
+  group_by(low_birth_weigh) %>%
+  slice_max(order_by = freq, n = 1) %>%
+  rename(
+    Categoria = low_birth_weigh,
+    `Faixa de Renda Mais Frequente` = inc,
+    Frequência = freq
+  )
+
+# Exibir tabela no .Rmd
+knitr::kable(
+  tabela_renda,
+  caption = "Faixa de Renda Familiar Mais Frequente por Categoria de Peso",
+  align = "lcc",
+  booktabs = TRUE
+)
+
+```
+
+
+
+
+###### Modelagem 
+
+
+
+
+---
+title: "Modelo Ordinal Final com Suposição de Proporcionalidade"
+author: "Samuel Sobral Miller"
+output: pdf_document
+date: "2025-07-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ordinal)
+library(VGAM)
+```
+
+## Carregamento e Tratamento dos Dados
+
+```{r}
+
+dados <- read_csv("dados_limpo.csv", col_types = cols(
+  gestation = col_integer(),
+  parity = col_integer(),
+  race = col_factor(),
+  age = col_integer(),
+  ed = col_factor(),
+  ht = col_double(),
+  wt.1 = col_double(),
+  drace = col_factor(),
+  dage = col_integer(),
+  ded = col_factor(),
+  inc = col_factor(),
+  smoke = col_factor(),
+  time = col_factor(),
+  number = col_factor(),
+  low_birth_weigh = col_factor()
+))
+
+dados = dados %>% filter(number != "fumo_mas_não_sei")
+
+# Recategorização de variáveis
+dados$ed <- fct_collapse(dados$ed,
+  Ensino_Medio_Incompleto = c("menor_8ª", "8ª-12ª", "Ensino_Medio_incompleto+curso_profissional"),
+  Ensino_Medio = c("Ensino_Medio", "Ensino_Medio+curso_profissional"),
+  Graduando = c("Ensino_Medio+curso_universitário"),
+  Ensino_Superior = c("Graduação_universitária")
+)
+
+dados$ded <- fct_collapse(dados$ded,
+  Ensino_Medio_Incompleto = c("menor_8ª", "8ª-12ª", "Ensino_Medio_incompleto+curso_profissional"),
+  Ensino_Medio = c("Ensino_Medio"),
+  Graduando = c("Ensino_Medio+curso_universitário"),
+  Ensino_Superior = c("Graduação_universitária")
+)
+
+dados$time <- fct_collapse(dados$time,
+  "Nunca" = "nunca",
+  "Fuma" = "ainda_fuma",
+  "-2_anos" = c("dentro_de_1_ano", "1_a_2_anos_atrás"),
+  "-5_anos" = c("2_a_3_anos_atrás", "3_a_4_anos_atrás"),
+  "+5_anos" = c("5_a_9_anos_atrás", "há_mais_de_10_anos"),
+  "Durante" = "durante_a_gravidez_atual",
+  "Nao_Sabe" = "desisti_e_não_sei"
+)
+
+dados$number <- fct_collapse(dados$number,
+  "1-4" = "1-4",
+  "5-9" = "5-9",
+  "10-19" = c("10-14", "15-19"),
+  "20-29" = "20-29",
+  "30-39" = "30-39",
+  "40+" = c("40-60", "60+"),
+  "Nunca" = "nunca"
+)
+
+# Recodificação de fatores omitida para brevidade, assumimos que já foi feita.
+
+# Subconjunto relevante
+db = dados %>% select(gestation, parity, wt.1, number, race, low_birth_weigh)
+
+# Variável resposta como ordinal
+db$low_birth_weigh = factor(db$low_birth_weigh, 
+                            levels = c("Baixo", "Médio", "Alto"), 
+                            ordered = TRUE)
+
+# Reordenação da referência
+db$number = relevel(factor(db$number), ref = "Nunca")
+```
+
+## Ajuste do Modelo Final (back2)
+
+```{r}
+modelo_final <- clm(low_birth_weigh ~ gestation + parity + wt.1 + number + race, 
+                    data = db, link = "logit")
+summary(modelo_final)
+```
+
+## Teste da Suposição de Proporcionalidade
+
+```{r}
+nominal_test(modelo_final)
+```
+
+**Interpretação:** Os resultados do `nominal_test` indicam que **não há violação significativa da suposição de proporcionalidade** com as variáveis selecionadas, justificando o uso do modelo ordinal.
+
+## Conclusão
+
+O modelo ordinal proporcional ajustado indica que as variáveis gestação, paridade, peso pré-gestacional (wt.1), número de cigarros e raça estão associadas com o peso ao nascer. O modelo respeita a suposição de proporcionalidade e apresentou melhores resíduos e ajuste do que os modelos anteriores com a variável altura.
+
+
+
+
+## Ajuste do Modelo Ordinal (Back2)
+
+```{r}
+modelo_final <- clm(low_birth_weigh ~ gestation + parity + wt.1 + number + race,
+                     data = db, link = "logit")
+summary(modelo_final)
+```
+
+## Tabela com Coeficientes e ORs
+
+```{r}
+# Carregar pacotes
+library(tidyverse)
+library(broom)
+library(ordinal)
+library(knitr)
+
+# Ajuste do modelo (exemplo)
+modelo <- clm(low_birth_weigh ~ gestation + parity + wt.1 + number + race, data = db, link = "logit")
+
+# Gerar os coeficientes com tidy
+result <- tidy(modelo) %>%
+  filter(str_detect(term, "^[^\\|]")) %>%  # Exclui os interceptos threshold (|)
+  mutate(
+    OR = exp(estimate),
+    p_value = round(p.value, 4)
+  )
+
+# Mostrar a tabela com kable
+result %>%
+  select(term, estimate, std.error, OR, p_value) %>%
+  knitr::kable(digits = 3, caption = "Coeficientes do Modelo Ordinal com ORs")
+
+```
+
+
+
+
+
+```{r}
+
+
+# Carregue os pacotes necessários
+library(tidyverse)
+library(nnet)   # para multinom
+library(broom)  # para tidy()
+
+# Ajuste do modelo multinomial
+modelo_multinom <- multinom(low_birth_weigh ~ smoke + parity + ed + age, data = dados)
+
+# Extração das estimativas com intervalo de confiança e odds ratios
+resumo <- tidy(modelo_multinom, exponentiate = TRUE, conf.int = TRUE)
+
+# Tabela formatada com ORs (odds ratios)
+odds_table <- resumo |>
+  select(y.level, term, estimate) |>
+  pivot_wider(names_from = y.level, values_from = estimate) |>
+  rename("Variável" = term,
+         "Baixo vs Médio" = "Baixo",
+         "Alto vs Médio" = "Alto")
+
+# Visualizar tabela
+odds_table
+
+
+
+```
+
+
+## Análise de Correspondência Múltipla (ACM)
+
+A Análise de Correspondência Múltipla (ACM) é uma técnica exploratória ideal para examinar associações entre múltiplas variáveis categóricas. No contexto deste estudo, a ACM pode ser usada para complementar a análise descritiva e visualizar as relações entre o peso ao nascer (`low_birth_weigh`) e variáveis categóricas como `smoke`, `number`, `ed`, `ded`, `race` e `inc`.
+
+### 1. Pré-processamento
+```{r}
+library(FactoMineR)
+library(factoextra)
+
+# Subconjunto de dados categóricos
+dados_cat <- dados %>% 
+  select(low_birth_weigh, smoke, number, ed, ded, race, inc) %>%
+  na.omit()  # remover NAs para análise
+
+# Executar ACM
+acm_result <- MCA(dados_cat, graph = FALSE)
+```
+
+
+```{r}
+# Selecionar apenas variáveis categóricas para a MCA
+db_cat <- dados %>%
+  select(low_birth_weigh, smoke, ed, ded, inc, number, race) %>%
+  mutate(across(everything(), as.factor))
+library(FactoMineR)
+res.mca <- MCA(db_cat, graph = FALSE)
+
+```
+
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+library(ggrepel)
+
+# Supondo que você já tenha feito o MCA com:
+res.mca <- MCA(db_cat, graph = FALSE)
+
+# Gráfico de variáveis com melhorias
+fviz_mca_var(res.mca, 
+             repel = TRUE,             # Evita sobreposição de texto
+             label = "all",            # Mostra todos os labels
+             col.var = "contrib",      # Cor com base na contribuição
+             gradient.cols = c("#56B1F7", "#132B43"), 
+             ggtheme = theme_minimal(),
+             title = "Categorias das Variáveis - Análise de Correspondência Múltipla"
+) +
+  theme(
+    text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "right"
+  )
+
+
+```
+
+
+####Teste de associações
+
+
+````
+# Teste de associações com  Monte Carlo para todas as variáveis categorica e a variavel resposta 
+vars <- c("race", "drace", "smoke", "ed", "ded", "inc", "time", "number")
+for (var in vars) {
+  cat("Teste para", var, "\n")
+  result <- fisher.test(table(dados$low_birth_weigh, dados[[var]]), 
+                        simulate.p.value = TRUE, B = 10000)
+  print(result)
+}
+
+```

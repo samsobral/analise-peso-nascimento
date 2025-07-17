@@ -1,0 +1,128 @@
+---
+title: "Modelo Ordinal Final - Backward"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ordinal)
+library(VGAM)
+library(ggplot2)
+```
+
+## Carregamento e Preparação dos Dados
+
+```{r}
+dados <- read_csv("dados_limpo.csv")
+
+# Recategorização
+dados <- dados %>%
+  filter(number != "fumo_mas_não_sei") %>%
+  mutate(
+    ed = fct_collapse(ed,
+      Ensino_Medio_Incompleto = c("menor_8ª", "8ª-12ª", "Ensino_Medio_incompleto+curso_profissional"),
+      Ensino_Medio = c("Ensino_Medio", "Ensino_Medio+curso_profissional"),
+      Graduando = c("Ensino_Medio+curso_universitário"),
+      Ensino_Superior = c("Graduação_universitária")
+    ),
+    ded = fct_collapse(ded,
+      Ensino_Medio_Incompleto = c("menor_8ª", "8ª-12ª", "Ensino_Medio_incompleto+curso_profissional"),
+      Ensino_Medio = c("Ensino_Medio"),
+      Graduando = c("Ensino_Medio+curso_universitário"),
+      Ensino_Superior = c("Graduação_universitária")
+    ),
+    time = fct_collapse(time,
+      "Nunca" = c("nunca"),
+      "Fuma" = c("ainda_fuma"),
+      "-2_anos" = c("dentro_de_1_ano", "1_a_2_anos_atrás"),
+      "-5_anos" = c("2_a_3_anos_atrás", "3_a_4_anos_atrás"),
+      "+5_anos" = c("5_a_9_anos_atrás", "há_mais_de_10_anos"),
+      "Durante" = c("durante_a_gravidez_atual"),
+      "Nao_Sabe" = c("desisti_e_não_sei")
+    ),
+    number = fct_collapse(number,
+      "1-4" = c("1-4"),
+      "5-9" = c("5-9"),
+      "10-19" = c("10-14", "15-19"),
+      "20-29" = c("20-29"),
+      "30-39" = c("30-39"),
+      "40+" = c("40-60", "60+"),
+      "Nunca" = "nunca"
+    )
+  )
+
+# Seleção de variáveis
+
+db <- dados %>%
+  select(gestation, parity, wt.1, ht, inc, number, low_birth_weigh, race)
+db$low_birth_weigh <- factor(db$low_birth_weigh, levels = c("Baixo", "Médio", "Alto"), ordered = TRUE)
+db$number <- relevel(db$number, ref = "Nunca")
+```
+
+## Ajuste do Modelo Ordinal (Back2)
+
+```{r}
+modelo_final <- clm(low_birth_weigh ~ gestation + parity + wt.1 + number + race,
+                     data = db, link = "logit")
+summary(modelo_final)
+```
+
+## Tabela com Coeficientes e ORs
+
+```{r}
+# Carregar pacotes
+library(tidyverse)
+library(broom)
+library(ordinal)
+library(knitr)
+
+# Ajuste do modelo (exemplo)
+modelo <- clm(low_birth_weigh ~ gestation + parity + wt.1 + number + race, data = db, link = "logit")
+
+# Gerar os coeficientes com tidy
+result <- tidy(modelo) %>%
+  filter(str_detect(term, "^[^\\|]")) %>%  # Exclui os interceptos threshold (|)
+  mutate(
+    OR = exp(estimate),
+    p_value = round(p.value, 4)
+  )
+
+# Mostrar a tabela com kable
+result %>%
+  select(term, estimate, std.error, OR, p_value) %>%
+  knitr::kable(digits = 3, caption = "Coeficientes do Modelo Ordinal com ORs")
+
+```
+
+## Gráfico: Coeficientes com Intervalos de Confiança
+
+```{r}
+result %>%
+  mutate(term = fct_reorder(term, estimate)) %>%
+  ggplot(aes(x = term, y = OR)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = exp(estimate - 1.96 * std.error),
+                    ymax = exp(estimate + 1.96 * std.error)), width = 0.2) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  coord_flip() +
+  labs(title = "Razão de Chances (OR) com Intervalo de Confiança",
+       x = "Variável", y = "Odds Ratio") +
+  theme_minimal(base_size = 14)
+```
+
+## Interpretação dos Coeficientes
+
+- **Gestation**: Cada dia adicional de gestação está associado a um aumento na chance de o bebê nascer com peso maior. OR > 1 e p < 0.001.
+- **Paridade**: O número de partos anteriores influencia positivamente, embora com menor efeito que gestação.
+- **wt.1**: Peso pré-gestacional da mãe; aumento está associado a maior peso do bebê.
+- **Number = 1-4, 5-9, ...**: Categorias com coeficientes negativos indicam maior chance de peso menor em relação a quem nunca fumou.
+- **Race (Branco, Pardo, Preto)**: Todas as raças em comparação a Asiáticos apresentaram OR > 1, indicando maior chance de peso maior.
+
+## Diagnóstico
+
+```{r}
+nominal_test(modelo_final)
+```
+
+Teste de proporcionalidade será utilizado para verificar a adequação do modelo ordinal.
